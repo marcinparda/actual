@@ -25,7 +25,7 @@ declare -A apps=(
 
 for app in "${!apps[@]}"; do
   port="${apps[$app]}"
-  image="ghcr.io/$OWNER/$REPO-$app:latest"
+  image="ghcr.io/$OWNER/$REPO:latest"
   container="$app"
 
   echo "� Stopping existing container $container if running..."
@@ -42,7 +42,7 @@ for app in "${!apps[@]}"; do
   docker run -d \
     --name "$container" \
     --restart unless-stopped \
-    -p "$port:$port" \
+    -p "$port:80" \
     -v "$DATA_DIR/data" \
     "$image"
 

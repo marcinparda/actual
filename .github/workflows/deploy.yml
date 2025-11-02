@@ -32,8 +32,8 @@ jobs:
           file: Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}-actual:latest
-            ghcr.io/${{ github.repository }}-actual:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
           platforms: linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max

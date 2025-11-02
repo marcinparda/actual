@@ -1,4 +1,4 @@
-name: Deploy to Production
+name: Deploy to raspberry
 
 on:
   workflow_call:
@@ -13,7 +13,7 @@ on:
         required: true
 
 jobs:
-  deploy-to-production:
+  deploy-to-raspberry:
     runs-on: ubuntu-latest
     outputs:
       deployment-status: ${{ steps.deploy.outcome }}
@@ -46,7 +46,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy all apps to Raspberry Pi
+      - name: Deploy Actual budget app to Raspberry Pi
         id: deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -77,15 +77,15 @@ jobs:
           rm -f deploy-actual.sh
 
   summary:
-    needs: deploy-to-production
+    needs: deploy-to-raspberry
     runs-on: ubuntu-latest
     if: always()
 
     steps:
       - name: Deployment Summary
         run: |
-          echo "# 🚀 Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ needs.deploy-to-production.outputs.deployment-status }}" == "success" ]]; then
+          echo "# 🚀 Raspberry Pi Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.deploy-to-raspberry.outputs.deployment-status }}" == "success" ]]; then
             echo "## 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Your application has been successfully deployed to the Raspberry Pi." >> $GITHUB_STEP_SUMMARY
