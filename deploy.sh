@@ -20,7 +20,7 @@ echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
 # App definitions: name, image, container, port
 declare -A apps=(
-  [actual-container]="5006"
+  [actual]="5006"
 )
 
 for app in "${!apps[@]}"; do
