@@ -1,0 +1,65 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build-test-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Important for pushing to GHCR
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Restore npm cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image for actual budget app
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-actual:latest
+            ghcr.io/${{ github.repository }}-actual:${{ github.sha }}
+          platforms: linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-to-raspberry:
+    needs: [build-test-and-push]
+    uses: ./.github/workflows/deploy-to-raspberry.yml
+    secrets:
+      CLOUDFLARE_TUNNEL_DOMAIN: ${{ secrets.CLOUDFLARE_TUNNEL_DOMAIN }}
+      RASPBERRY_PI_USERNAME: ${{ secrets.RASPBERRY_PI_USERNAME }}
+      RASPBERRY_PI_SSH_KEY: ${{ secrets.RASPBERRY_PI_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
