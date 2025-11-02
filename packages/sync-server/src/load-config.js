@@ -13,11 +13,16 @@ const debugSensitive = createDebug('actual-sensitive:config');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const projectRoot = path.dirname(__dirname).replace(/[\\/]build$/, '');
+// Calculate the actual project root (go up from packages/sync-server to the monorepo root)
+const actualProjectRoot = path.resolve(projectRoot, '../..');
+const projectDataDir = path.join(actualProjectRoot, 'data');
 const defaultDataDir = process.env.ACTUAL_DATA_DIR
   ? process.env.ACTUAL_DATA_DIR
-  : fs.existsSync('/data')
-    ? '/data'
-    : projectRoot;
+  : fs.existsSync(projectDataDir)
+    ? projectDataDir
+    : fs.existsSync('/data')
+      ? '/data'
+      : projectRoot;
 
 debug(`Project root: '${projectRoot}'`);
 
