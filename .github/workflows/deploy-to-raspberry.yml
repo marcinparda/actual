@@ -11,6 +11,8 @@ on:
         required: true
       SSH_KNOWN_HOSTS:
         required: true
+      CONFIG:
+        required: true
 
 jobs:
   deploy-to-raspberry:
@@ -52,6 +54,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
+          CONFIG: ${{ secrets.CONFIG }}
         run: |
           echo "🚀 Starting deployment of all apps to Raspberry Pi..."
 
@@ -65,6 +68,7 @@ jobs:
             GITHUB_ACTOR='${{ github.actor }}' \
             OWNER='${{ github.repository_owner }}' \
             REPO='${{ github.event.repository.name }}' \
+            CONFIG='$CONFIG' \
             ~/deploy-actual.sh"
 
           echo "🎉 Deployment to Raspberry Pi completed successfully!"

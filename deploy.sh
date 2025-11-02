@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Required environment variables:
-#   GITHUB_TOKEN, GITHUB_ACTOR
+#   GITHUB_TOKEN, GITHUB_ACTOR, CONFIG
 set -e
 
 if [[ -z "$GITHUB_TOKEN" || -z "$GITHUB_ACTOR" ]]; then
@@ -10,10 +10,23 @@ if [[ -z "$GITHUB_TOKEN" || -z "$GITHUB_ACTOR" ]]; then
   exit 1
 fi
 
+if [[ -z "$CONFIG" ]]; then
+  echo "❌ CONFIG environment variable is required for config.json."
+  exit 1
+fi
+
 OWNER="${OWNER:-marcinparda}"
 REPO="${REPO:-actual}"
 DATA_DIR="${ACTUAL_DATA_DIR:-$HOME/actual-budget-data}"
 PORT="${ACTUAL_PORT:-5006}"
+
+# echo "📁 Setting up data directory..."
+# mkdir -p "$DATA_DIR"
+
+# echo "📝 Creating config.json from CONFIG secret..."
+# echo "$CONFIG" > "$DATA_DIR/config.json"
+# chmod 600 "$DATA_DIR/config.json"
+# echo "✅ config.json created at $DATA_DIR/config.json"
 
 echo "🔑 Logging in to GitHub Container Registry..."
 echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
@@ -38,12 +51,12 @@ for app in "${!apps[@]}"; do
   echo "📥 Pulling latest image for $container..."
   docker pull "$image"
 
-  echo "� Starting new container $container on port $port:80..."
+  echo "🚀 Starting new container $container on port $port:80..."
   docker run -d \
     --name "$container" \
     --restart unless-stopped \
     -p "$port:80" \
-    -v "$DATA_DIR/data" \
+    -v "$DATA_DIR:/data" \
     "$image"
 
   # Health check

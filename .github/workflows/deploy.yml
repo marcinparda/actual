@@ -59,3 +59,4 @@ jobs:
       RASPBERRY_PI_USERNAME: ${{ secrets.RASPBERRY_PI_USERNAME }}
       RASPBERRY_PI_SSH_KEY: ${{ secrets.RASPBERRY_PI_SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+      CONFIG: ${{ secrets.CONFIG }}
