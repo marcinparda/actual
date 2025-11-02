@@ -1,81 +1,75 @@
 ###################################################
 # Production Dockerfile for deploying Actual Budget
-# This builds the sync-server and web client for
-# production deployment.
+# Based on official ubuntu.Dockerfile but customized
+# for deployment with port 80.
+#
+# IMPORTANT: This expects packages/desktop-client/build
+# and packages/sync-server/build to already exist!
+# Build the app BEFORE running docker build.
 ###################################################
 
-FROM node:22-bookworm AS builder
+FROM node:22-bookworm AS deps
+
+# Install required packages
+RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-# Install system dependencies and build tools
-RUN apt-get update -y && \
-    apt-get install -y openssl python3 make g++ && \
-    rm -rf /var/lib/apt/lists/*
+# Copy only the files needed for installing dependencies
+COPY .yarn ./.yarn
+COPY yarn.lock package.json .yarnrc.yml ./
+COPY packages/api/package.json packages/api/package.json
+COPY packages/component-library/package.json packages/component-library/package.json
+COPY packages/crdt/package.json packages/crdt/package.json
+COPY packages/desktop-client/package.json packages/desktop-client/package.json
+COPY packages/desktop-electron/package.json packages/desktop-electron/package.json
+COPY packages/eslint-plugin-actual/package.json packages/eslint-plugin-actual/package.json
+COPY packages/loot-core/package.json packages/loot-core/package.json
+COPY packages/sync-server/package.json packages/sync-server/package.json
+COPY packages/plugins-service/package.json packages/plugins-service/package.json
 
-# Set environment to skip unnecessary downloads and prefer pre-built binaries
-ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
-    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
+# Avoiding memory issues with ARMv7
+RUN if [ "$(uname -m)" = "armv7l" ]; then yarn config set taskPoolConcurrency 2; yarn config set networkConcurrency 5; fi
 
-# Copy all source code first (needed for workspace resolution)
-COPY . .
+# Focus the workspaces in production mode
+RUN yarn workspaces focus @actual-app/sync-server --production
 
-# Install dependencies for sync-server and web client only
-# This avoids electron and other desktop-only dependencies
-RUN yarn workspaces focus @actual-app/sync-server @actual-app/web
-
-# Build the browser client (required dependency for sync-server)
-RUN yarn build:browser
-
-# Build the sync-server
-RUN yarn build:server
-
-# Production stage
-FROM node:22-bookworm-slim
+FROM deps AS builder
 
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssl tini && \
-    apt-get clean -y && \
-    rm -rf /var/lib/apt/lists/*
+COPY packages/sync-server ./packages/sync-server
 
-# Copy package files for production install
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/yarn.lock ./
-COPY --from=builder /app/.yarnrc.yml ./
-COPY --from=builder /app/.yarn ./.yarn
-COPY --from=builder /app/packages/sync-server/package.json ./packages/sync-server/
-COPY --from=builder /app/packages/desktop-client/package.json ./packages/desktop-client/
-COPY --from=builder /app/packages/loot-core/package.json ./packages/loot-core/
-COPY --from=builder /app/packages/crdt/package.json ./packages/crdt/
-COPY --from=builder /app/packages/component-library/package.json ./packages/component-library/
+# Remove symbolic links for @actual-app/web and @actual-app/sync-server
+RUN rm -rf ./node_modules/@actual-app/web ./node_modules/@actual-app/sync-server
 
-# Install ONLY production dependencies
-RUN yarn workspaces focus --production @actual-app/sync-server @actual-app/web
+# Copy in the @actual-app/web artifacts manually, so we don't need the entire packages folder
+COPY packages/desktop-client/package.json ./node_modules/@actual-app/web/package.json
+COPY packages/desktop-client/build ./node_modules/@actual-app/web/build
 
-# Copy built artifacts
-COPY --from=builder /app/packages/sync-server/build ./packages/sync-server/build
-COPY --from=builder /app/packages/desktop-client/build ./packages/desktop-client/build
-COPY --from=builder /app/packages/loot-core/lib-dist ./packages/loot-core/lib-dist
-COPY --from=builder /app/packages/crdt/lib ./packages/crdt/lib
+FROM node:22-bookworm-slim AS prod
 
-# Set environment variables for production
-ENV NODE_ENV=production \
-    PORT=80 \
-    ACTUAL_SERVER_FILES=/data
+# Minimal runtime dependencies
+RUN apt-get update && apt-get install tini && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
-# Create data directory
-RUN mkdir -p /data
+# Create a non-root user
+ARG USERNAME=actual
+ARG USER_UID=1001
+ARG USER_GID=$USER_UID
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && mkdir /data && chown -R ${USERNAME}:${USERNAME} /data
 
-# Use tini as init system for proper signal handling
-ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
+WORKDIR /app
+ENV NODE_ENV=production
 
-# Expose port 80 (as expected by deploy.sh)
+# Pull in only the necessary artifacts (built node_modules, server files, etc.)
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/packages/sync-server/package.json ./
+COPY --from=builder /app/packages/sync-server/build ./
+
+ENTRYPOINT ["/usr/bin/tini","-g",  "--"]
+# Use port 80 instead of 5006 for deployment
 EXPOSE 80
-
-# Start the sync-server
-WORKDIR /app/packages/sync-server
-CMD ["node", "build/app.js"]
+ENV PORT=80
+CMD ["node", "app.js"]
