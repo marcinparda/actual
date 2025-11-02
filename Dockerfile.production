@@ -14,11 +14,16 @@ RUN apt-get update -y && apt-get upgrade -y && apt-get install -y openssl
 # Copy package files and Yarn configuration
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn ./.yarn
-COPY packages/sync-server/package.json ./packages/sync-server/
-COPY packages/desktop-client/package.json ./packages/desktop-client/
-COPY packages/loot-core/package.json ./packages/loot-core/
-COPY packages/crdt/package.json ./packages/crdt/
+COPY packages/api/package.json ./packages/api/
+COPY packages/ci-actions/package.json ./packages/ci-actions/
 COPY packages/component-library/package.json ./packages/component-library/
+COPY packages/crdt/package.json ./packages/crdt/
+COPY packages/desktop-client/package.json ./packages/desktop-client/
+COPY packages/desktop-electron/package.json ./packages/desktop-electron/
+COPY packages/eslint-plugin-actual/package.json ./packages/eslint-plugin-actual/
+COPY packages/loot-core/package.json ./packages/loot-core/
+COPY packages/plugins-service/package.json ./packages/plugins-service/
+COPY packages/sync-server/package.json ./packages/sync-server/
 
 # Install all dependencies
 RUN yarn install --immutable
