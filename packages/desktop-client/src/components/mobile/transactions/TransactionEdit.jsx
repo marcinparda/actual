@@ -14,6 +14,7 @@ import { Button } from '@actual-app/components/button';
 import { SvgSplit } from '@actual-app/components/icons/v0';
 import {
   SvgAdd,
+  SvgCamera,
   SvgPiggyBank,
   SvgTrash,
 } from '@actual-app/components/icons/v1';
@@ -31,6 +32,7 @@ import {
 } from 'date-fns';
 
 import { send } from 'loot-core/platform/client/fetch';
+import { uploadReceipt } from 'loot-core/server/receipt-api';
 import * as monthUtils from 'loot-core/shared/months';
 import * as Platform from 'loot-core/shared/platform';
 import { q } from 'loot-core/shared/query';
@@ -81,6 +83,8 @@ import { pushModal } from '@desktop-client/modals/modalsSlice';
 import { aqlQuery } from '@desktop-client/queries/aqlQuery';
 import { useSelector, useDispatch } from '@desktop-client/redux';
 import { setLastTransaction } from '@desktop-client/transactions/transactionsSlice';
+import { addNotification } from '@desktop-client/notifications/notificationsSlice';
+import { useServerURL } from '@desktop-client/components/ServerContext';
 
 function getFieldName(transactionId, field) {
   return `${field}-${transactionId}`;
@@ -514,6 +518,9 @@ const TransactionEditInner = memo(function TransactionEditInner({
   );
   const childTransactionElementRefMap = useRef({});
   const hasAccountChanged = useRef(false);
+  const fileInputRef = useRef(null);
+  const serverUrl = useServerURL();
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const payeesById = useMemo(() => groupById(payees), [payees]);
   const accountsById = useMemo(() => groupById(accounts), [accounts]);
@@ -804,6 +811,48 @@ const TransactionEditInner = memo(function TransactionEditInner({
     [scrollChildTransactionIntoView],
   );
 
+  const handleReceiptUpload = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!serverUrl) {
+      dispatch(
+        addNotification({
+          type: 'error',
+          message: 'Sync server URL not configured',
+        }),
+      );
+      return;
+    }
+
+    setUploadingReceipt(true);
+
+    try {
+      const result = await uploadReceipt(file, serverUrl);
+      const accountId = transaction.account || null;
+
+      // Navigate to receipt review page
+      navigate(`/receipt/review/${result.fileId}${accountId ? `?accountId=${accountId}` : ''}`);
+    } catch (error) {
+      dispatch(
+        addNotification({
+          type: 'error',
+          message: `Failed to upload receipt: ${error.message}`,
+        }),
+      );
+      setUploadingReceipt(false);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [serverUrl, transaction.account, navigate, dispatch]);
+
+  const onReceiptButtonClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
   // Child transactions should always default to the signage
   // of the parent transaction
   const childAmountSign = transaction.amount <= 0 ? '-' : '+';
@@ -857,6 +906,35 @@ const TransactionEditInner = memo(function TransactionEditInner({
         data-testid="transaction-form"
         style={{ flexShrink: 0, marginTop: 20, marginBottom: 20 }}
       >
+        {isAdding && serverUrl && (
+          <View style={{ alignItems: 'center', marginBottom: 20 }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleReceiptUpload}
+              style={{ display: 'none' }}
+            />
+            <Button
+              onPress={onReceiptButtonClick}
+              variant="bare"
+              isDisabled={uploadingReceipt}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 16px',
+                color: theme.pageText,
+              }}
+            >
+              <SvgCamera width={20} height={20} />
+              <Text>
+                {uploadingReceipt ? t('Uploading...') : t('Add from Receipt')}
+              </Text>
+            </Button>
+          </View>
+        )}
         <View
           style={{
             alignItems: 'center',

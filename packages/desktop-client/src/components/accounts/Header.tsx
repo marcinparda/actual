@@ -12,6 +12,7 @@ import { Button } from '@actual-app/components/button';
 import { AnimatedLoading } from '@actual-app/components/icons/AnimatedLoading';
 import {
   SvgAdd,
+  SvgCamera,
   SvgDotsHorizontalTriple,
 } from '@actual-app/components/icons/v1';
 import {
@@ -56,9 +57,14 @@ import { SelectedTransactionsButton } from '@desktop-client/components/transacti
 import { useDateFormat } from '@desktop-client/hooks/useDateFormat';
 import { useLocale } from '@desktop-client/hooks/useLocale';
 import { useLocalPref } from '@desktop-client/hooks/useLocalPref';
+import { useNavigate } from '@desktop-client/hooks/useNavigate';
 import { useSplitsExpanded } from '@desktop-client/hooks/useSplitsExpanded';
 import { useSyncedPref } from '@desktop-client/hooks/useSyncedPref';
 import { useSyncServerStatus } from '@desktop-client/hooks/useSyncServerStatus';
+import { uploadReceipt } from 'loot-core/server/receipt-api';
+import { addNotification } from '@desktop-client/notifications/notificationsSlice';
+import { useDispatch, useSelector } from '@desktop-client/redux';
+import { useServerURL } from '@desktop-client/components/ServerContext';
 
 type AccountHeaderProps = {
   tableRef: TableRef;
@@ -211,6 +217,56 @@ export function AccountHeader({
 
   const dateFormat = useDateFormat() || 'MM/dd/yyyy';
   const locale = useLocale();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const serverUrl = useServerURL();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+
+  const handleReceiptUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!serverUrl) {
+      dispatch(
+        addNotification({
+          type: 'error',
+          message: 'Sync server URL not configured',
+        }),
+      );
+      return;
+    }
+
+    setUploadingReceipt(true);
+
+    try {
+      const result = await uploadReceipt(file, serverUrl);
+
+      // Navigate to receipt review page
+      navigate(
+        `/receipt/review/${result.fileId}${accountId ? `?accountId=${accountId}` : ''}`,
+      );
+    } catch (error) {
+      dispatch(
+        addNotification({
+          type: 'error',
+          message: `Failed to upload receipt: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        }),
+      );
+      setUploadingReceipt(false);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const onReceiptButtonClick = () => {
+    fileInputRef.current?.click();
+  };
 
   let canSync = !!(account?.account_id && isUsingServer);
   if (!account) {
@@ -378,6 +434,27 @@ export function AccountHeader({
               <SvgAdd width={10} height={10} style={{ marginRight: 3 }} />
               <Trans>Add New</Trans>
             </Button>
+          )}
+          {!showEmptyMessage && serverUrl && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleReceiptUpload}
+                style={{ display: 'none' }}
+              />
+              <Button
+                variant="bare"
+                onPress={onReceiptButtonClick}
+                isDisabled={uploadingReceipt}
+              >
+                <SvgCamera width={13} height={13} style={{ marginRight: 4 }} />
+                <Trans>
+                  {uploadingReceipt ? 'Uploading...' : 'From Receipt'}
+                </Trans>
+              </Button>
+            </>
           )}
           <View style={{ flexShrink: 0 }}>
             {/* @ts-expect-error fix me */}

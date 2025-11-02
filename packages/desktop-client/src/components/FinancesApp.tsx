@@ -15,6 +15,8 @@ import { CommandBar } from './CommandBar';
 import { GlobalKeys } from './GlobalKeys';
 import { MobileBankSyncAccountEditPage } from './mobile/banksync/MobileBankSyncAccountEditPage';
 import { MobileNavTabs } from './mobile/MobileNavTabs';
+import { ReceiptReview as MobileReceiptReview } from './mobile/receipts/ReceiptReview';
+import { ReceiptReview as DesktopReceiptReview } from './receipts/ReceiptReview';
 import { TransactionEdit } from './mobile/transactions/TransactionEdit';
 import { Notifications } from './Notifications';
 import { Reports } from './reports';
@@ -319,6 +321,11 @@ export function FinancesApp() {
                       <TransactionEdit />
                     </WideNotSupported>
                   }
+                />
+
+                <Route
+                  path="/receipt/review/:fileId"
+                  element={<DesktopReceiptReview />}
                 />
 
                 <Route

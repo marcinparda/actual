@@ -6,6 +6,7 @@ Actual-*
 !actual-server.js
 **/xcuserdata/*
 export-2020-01-10.csv
+.env
 
 # MacOS
 .DS_Store

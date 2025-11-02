@@ -289,6 +289,38 @@ const configSchema = convict({
       env: 'ACTUAL_GITHUB_TOKEN',
     },
   },
+  openai: {
+    doc: 'OpenAI API configuration for receipt processing.',
+
+    apiKey: {
+      doc: 'OpenAI API key for GPT-4o mini receipt OCR.',
+      format: String,
+      default: '',
+      env: 'ACTUAL_OPENAI_API_KEY',
+    },
+    model: {
+      doc: 'OpenAI model to use for receipt processing.',
+      format: String,
+      default: 'gpt-4o-mini',
+      env: 'ACTUAL_OPENAI_MODEL',
+    },
+  },
+  receipt: {
+    doc: 'Receipt upload and storage configuration.',
+
+    storagePath: {
+      doc: 'Directory path for storing uploaded receipt images.',
+      format: String,
+      default: path.join(defaultDataDir, 'receipts'),
+      env: 'ACTUAL_RECEIPT_STORAGE_PATH',
+    },
+    maxSizeMB: {
+      doc: 'Maximum receipt file size (in MB).',
+      format: 'nat',
+      default: 10,
+      env: 'ACTUAL_RECEIPT_MAX_SIZE_MB',
+    },
+  },
   corsProxy: {
     doc: 'CORS proxy configuration for frontend plugins.',
 
@@ -355,5 +387,14 @@ if (githubToken) {
   debug(`GitHub Token: ${'*'.repeat(Math.min(githubToken.length, 20))}`);
   debugSensitive(`GitHub Token: ${githubToken}`);
 }
+
+const openaiApiKey = configSchema.get('openai.apiKey');
+if (openaiApiKey) {
+  debug(`OpenAI API Key: ${'*'.repeat(Math.min(openaiApiKey.length, 20))}`);
+  debugSensitive(`OpenAI API Key: ${openaiApiKey}`);
+}
+debug(`OpenAI Model: ${configSchema.get('openai.model')}`);
+debug(`Receipt storage path: ${configSchema.get('receipt.storagePath')}`);
+debug(`Receipt max size: ${configSchema.get('receipt.maxSizeMB')}MB`);
 
 export { configSchema as config };
