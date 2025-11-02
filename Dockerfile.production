@@ -8,28 +8,22 @@ FROM node:22-bookworm AS builder
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y openssl
+# Install system dependencies and build tools
+RUN apt-get update -y && \
+    apt-get install -y openssl python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy package files and Yarn configuration
-COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn ./.yarn
-COPY packages/api/package.json ./packages/api/
-COPY packages/ci-actions/package.json ./packages/ci-actions/
-COPY packages/component-library/package.json ./packages/component-library/
-COPY packages/crdt/package.json ./packages/crdt/
-COPY packages/desktop-client/package.json ./packages/desktop-client/
-COPY packages/desktop-electron/package.json ./packages/desktop-electron/
-COPY packages/eslint-plugin-actual/package.json ./packages/eslint-plugin-actual/
-COPY packages/loot-core/package.json ./packages/loot-core/
-COPY packages/plugins-service/package.json ./packages/plugins-service/
-COPY packages/sync-server/package.json ./packages/sync-server/
+# Set environment to skip unnecessary downloads and prefer pre-built binaries
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
 
-# Install all dependencies
-RUN yarn install --immutable
-
-# Copy all source code
+# Copy all source code first (needed for workspace resolution)
 COPY . .
+
+# Install dependencies for sync-server and web client only
+# This avoids electron and other desktop-only dependencies
+RUN yarn workspaces focus @actual-app/sync-server @actual-app/web
 
 # Build the browser client (required dependency for sync-server)
 RUN yarn build:browser
@@ -42,26 +36,42 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
-# Install runtime dependencies (better-sqlite3 needs these)
+# Install runtime dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssl && \
+    apt-get install -y --no-install-recommends openssl tini && \
+    apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy built artifacts and dependencies from builder
+# Copy package files for production install
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/yarn.lock ./
 COPY --from=builder /app/.yarnrc.yml ./
 COPY --from=builder /app/.yarn ./.yarn
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/packages/sync-server/package.json ./packages/sync-server/
+COPY --from=builder /app/packages/desktop-client/package.json ./packages/desktop-client/
+COPY --from=builder /app/packages/loot-core/package.json ./packages/loot-core/
+COPY --from=builder /app/packages/crdt/package.json ./packages/crdt/
+COPY --from=builder /app/packages/component-library/package.json ./packages/component-library/
+
+# Install ONLY production dependencies
+RUN yarn workspaces focus --production @actual-app/sync-server @actual-app/web
+
+# Copy built artifacts
+COPY --from=builder /app/packages/sync-server/build ./packages/sync-server/build
+COPY --from=builder /app/packages/desktop-client/build ./packages/desktop-client/build
+COPY --from=builder /app/packages/loot-core/lib-dist ./packages/loot-core/lib-dist
+COPY --from=builder /app/packages/crdt/lib ./packages/crdt/lib
 
 # Set environment variables for production
-ENV NODE_ENV=production
-ENV PORT=80
-ENV ACTUAL_SERVER_FILES=/data
+ENV NODE_ENV=production \
+    PORT=80 \
+    ACTUAL_SERVER_FILES=/data
 
 # Create data directory
 RUN mkdir -p /data
+
+# Use tini as init system for proper signal handling
+ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
 
 # Expose port 80 (as expected by deploy.sh)
 EXPOSE 80
